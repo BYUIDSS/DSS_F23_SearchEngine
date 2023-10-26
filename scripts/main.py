@@ -52,15 +52,16 @@ def add_doc_to_index(page_content, page_url):
     vectors.append(vector)
     payloads.append(payload)
 
-    # Add vectors to collection
-    client.upsert(
-        collection_name=COLLECTION_NAME,
-        points=qmodels.Batch(
-            ids=ids,
-            vectors=vectors,
-            payloads=payloads
-        ),
-    )
+    # Add vectors to collection Commented out for now to prevent accidental duplicates
+    # client.upsert(
+    #     collection_name=COLLECTION_NAME,
+    #     points=qmodels.Batch(
+    #         ids=ids,
+    #         vectors=vectors,
+    #         payloads=payloads
+    #     ),
+    # )
+    
 
 def get_qd_vector(text):
     # TODO: add parameter for different collections
