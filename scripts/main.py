@@ -161,7 +161,7 @@ if __name__ == '__main__':
     # create_index()
     
     # Read in the csv, display the cost, create embeddings, and store in Qdrant
-    df = pd.read_csv('full-pages-export.csv')
+    # df = pd.read_csv('full-pages-export.csv')
 
     # display_cost(df)
 
