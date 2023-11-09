@@ -9,3 +9,5 @@ scripts/.env
 scripts/README.md
 .gitignore
 .gitignore
+.env
+scripts/scratch.py
