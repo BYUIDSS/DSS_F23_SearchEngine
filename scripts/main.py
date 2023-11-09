@@ -5,11 +5,11 @@ import qdrant_client as qc
 import qdrant_client.http.models as qmodels
 import uuid
 import pandas as pd
+# from estimate_costs.py import *
 
 
 MODEL = "text-embedding-ada-002"
-MODEL_COST_PER_TOKEN = 0.0001 / 1000
-# QDRANT_URL = "http://qdrant.orb.local"
+# QDRANT_URL = "http://qdrant.orb.local" 
 QDRANT_URL = "https://wwp-qdrant.spottenn.com/"
 config = dotenv_values(".env")
 client = None
@@ -22,6 +22,14 @@ DIMENSION = 1536
 COLLECTION_NAME = "wwp"
 QUERY_COLLECTION_NAME = "wwp_query"
 
+
+
+def upsert_points(collection_name, points):
+    for points in points.values():
+        get_from_cache(payload["text"], collection_name=collection_name)
+        
+    client.upsert(collection_name=collection_name, points=points)
+    return
 
 
 def create_subsection_vector(
@@ -52,21 +60,23 @@ def add_doc_to_index(page_content, page_url):
     vectors.append(vector)
     payloads.append(payload)
 
+    points = qmodels.Batch(
+            ids=ids,
+            vectors=vectors,
+            payloads=payloads
+        )
+    # points.
     # Add vectors to collection Commented out for now to prevent accidental duplicates
-    # client.upsert(
-    #     collection_name=COLLECTION_NAME,
-    #     points=qmodels.Batch(
-    #         ids=ids,
-    #         vectors=vectors,
-    #         payloads=payloads
-    #     ),
-    # )
+    client.upsert(
+        collection_name=COLLECTION_NAME,
+        points=points,
+    )
     
 
-def get_qd_vector(text):
-    # TODO: add parameter for different collections
+def get_from_cache(text, collection_name=COLLECTION_NAME):
+    # Check if the document/wuery is already in the database
     response = client.scroll(
-        collection_name=COLLECTION_NAME,
+        collection_name=collection_name,
         scroll_filter=qmodels.Filter(
             must=[
                 qmodels.FieldCondition(
@@ -83,11 +93,12 @@ def get_qd_vector(text):
     return None
 
 
-def embed_text(text):
-    # TODO: refactor so that the check is done outside of this function
-    qd_vector = get_qd_vector(text)
+def embed_text(text, collection_name=COLLECTION_NAME):
+    # Check vector database before calling openai api
+    qd_vector = get_from_cache(text, collection_name=collection_name)
     if qd_vector is not None:
         return qd_vector
+    
     openai.api_key = config['OPENAI_API_KEY']
     response = openai.Embedding.create(
         input=text,
@@ -108,7 +119,7 @@ def create_index():
 
 
 def query_index(query, top_k=20, doc_types=None, block_types=None):
-    vector = embed_text(query)
+    vector = embed_text(query, collection_name=QUERY_COLLECTION_NAME)
 
     results = client.search(
         collection_name=COLLECTION_NAME,
@@ -127,32 +138,6 @@ def query_index(query, top_k=20, doc_types=None, block_types=None):
     ]
 
     return results
-
-
-def calculate_cost(text="", encoding=tiktoken.encoding_for_model(MODEL), model_cost_per_token=MODEL_COST_PER_TOKEN): 
-    num_tokens = len(encoding.encode(text))
-    cost = num_tokens * model_cost_per_token
-    return cost, num_tokens
-
-
-def calculate_costs(df=None, columns=['Text Only Transcript'], model=MODEL, model_cost_per_token=MODEL_COST_PER_TOKEN):
-    if df is not None:
-        total_cost = 0
-        total_num_tokens = 0
-        for column in columns:
-            for index, row in df.iterrows():
-                if isinstance(row[column], str):
-                    cost, num_tokens = calculate_cost(text=row[column], encoding=tiktoken.encoding_for_model(model), model_cost_per_token=model_cost_per_token)
-                    total_cost += cost
-                    total_num_tokens += num_tokens
-        return total_cost, total_num_tokens
-    return 0, 0
-
-
-def display_cost(df):
-    cost, num_tokens = calculate_costs(df=df)
-    print("Num Tokens: ", num_tokens)
-    print("Cost: ", cost)
 
 
 if __name__ == '__main__':
@@ -176,6 +161,7 @@ if __name__ == '__main__':
 
     # Run search and print results
     results = query_index('When did you come to utah?')
+
 
     for result in results:
         print(result)
